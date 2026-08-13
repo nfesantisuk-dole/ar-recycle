@@ -128,6 +128,14 @@ button{font-family:'Kanit',sans-serif;}
 }
 .cta:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(22,35,26,.38);}
 .cta:disabled{opacity:.6;cursor:default;transform:none;}
+.cta-ghost{
+  width:100%;padding:clamp(14px,1.9vw,18px);border-radius:14px;border:2px solid #16231A;
+  background:transparent;color:#16231A;
+  font-size:clamp(15px,1.7vw,18px);font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  margin-top:12px;min-height:52px;box-shadow:none;
+}
+.cta-ghost:hover{background:rgba(22,35,26,.06);}
 .fineprint{font-size:clamp(13px,1.3vw,15px);color:#5B6B5E;text-align:center;margin-top:16px;line-height:1.6;font-weight:500;}
 .best-row{display:flex;justify-content:center;gap:6px;font-size:clamp(14px,1.5vw,17px);color:#3C4A3F;margin-top:16px;font-weight:700;}
 
@@ -143,6 +151,17 @@ button{font-family:'Kanit',sans-serif;}
 /* ================= GAME STAGE ================= */
 #stage{position:absolute;inset:0;z-index:5;display:none;}
 #stage.active{display:block;}
+#stage.pointer-mode{
+  touch-action:none;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(111,207,87,.16), transparent 45%),
+    radial-gradient(circle at 80% 20%, rgba(79,169,232,.14), transparent 45%),
+    radial-gradient(circle at 50% 90%, rgba(242,199,68,.12), transparent 45%),
+    var(--bg-deep);
+}
+#stage.pointer-mode video,
+#stage.pointer-mode .video-veil,
+#stage.pointer-mode .scan-corner{display:none;}
 video{
   position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
   transform:scaleX(-1);filter:saturate(1.05) contrast(1.02) brightness(.96);
@@ -157,6 +176,16 @@ video{
 .scan-corner.tr{top:14px;right:14px;border-top:3px solid;border-right:3px solid;border-radius:0 6px 0 0;}
 .scan-corner.bl{bottom:clamp(150px,20vh,220px);left:14px;border-bottom:3px solid;border-left:3px solid;border-radius:0 0 0 6px;}
 .scan-corner.br{bottom:clamp(150px,20vh,220px);right:14px;border-bottom:3px solid;border-right:3px solid;border-radius:0 0 6px 0;}
+
+/* ---- mode badge ---- */
+.mode-badge{
+  position:absolute;top:clamp(12px,2vw,24px);left:50%;transform:translateX(-50%);
+  z-index:20;background:rgba(18,36,28,.78);backdrop-filter:blur(8px);
+  border:1px solid rgba(198,255,94,.25);border-radius:100px;
+  padding:6px 16px;font-size:clamp(12px,1.3vw,15px);font-weight:700;color:var(--accent);
+  pointer-events:none;display:none;align-items:center;gap:6px;
+}
+.mode-badge.show{display:flex;}
 
 /* ---- HUD ---- */
 #hud{position:absolute;top:clamp(12px,2vw,24px);left:clamp(12px,2vw,24px);right:clamp(12px,2vw,24px);z-index:20;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;}
@@ -359,7 +388,8 @@ video{
       </div>
 
       <button class="cta" id="btn-start">🎥 เริ่มเกม (เปิดกล้อง)</button>
-      <p class="fineprint">ใช้กล้องตรวจจับมือเท่านั้น ไม่มีการบันทึกหรือส่งภาพออกจากเครื่อง<br>ใช้เมาส์ได้เฉพาะปุ่มหยุดเล่น / ออกจากเกมระหว่างเล่น</p>
+      <button class="cta-ghost" id="btn-start-pointer">🖱️ เล่นแบบไม่ใช้กล้อง (เมาส์ / นิ้ว)</button>
+      <p class="fineprint">ใช้กล้องตรวจจับมือเท่านั้น ไม่มีการบันทึกหรือส่งภาพออกจากเครื่อง<br>หากเปิดกล้องไม่ได้ สามารถเลือกโหมด "เล่นแบบไม่ใช้กล้อง" แทนได้</p>
       <div class="best-row" id="best-row" style="display:none;">🏆 คะแนนสูงสุด: <span id="best-val">0</span></div>
     </div>
   </div>
@@ -371,6 +401,7 @@ video{
       <h1 class="title-main" style="font-size:clamp(24px,3vw,32px);">ไม่สามารถเปิดกล้องได้</h1>
       <p class="title-sub" id="err-msg">กรุณาอนุญาตให้เว็บไซต์เข้าถึงกล้อง แล้วลองใหม่อีกครั้ง</p>
       <button class="cta" id="btn-retry">ลองอีกครั้ง</button>
+      <button class="cta-ghost" id="btn-error-pointer">🖱️ เล่นแบบไม่ใช้กล้องแทน (เมาส์ / นิ้ว)</button>
     </div>
   </div>
 
@@ -387,6 +418,7 @@ video{
     <div class="scan-corner tr"></div>
     <div class="scan-corner bl"></div>
     <div class="scan-corner br"></div>
+    <div class="mode-badge" id="mode-badge">🖱️ โหมดไม่ใช้กล้อง — เลื่อนเมาส์/นิ้วไปค้างที่ขยะเพื่อหยิบ</div>
 
     <div id="hud">
       <div class="hud-card score-card">
@@ -496,13 +528,14 @@ const TIMER_CIRCUMFERENCE = 201.06; // matches svg r=32 (2 * pi * 32)
 
 /* ---------------- state ---------------- */
 let handLandmarker = null;
-let video, stage, itemsLayer, binsLayer, handCursorEl, dwellRingEl, toastLayer;
+let video, stage, itemsLayer, binsLayer, handCursorEl, dwellRingEl, toastLayer, modeBadge;
 let bins = [];
 let stream = null;
 let rafId = null;
 let lastTs = 0;
 
 let gameState = 'idle'; // idle | playing | paused | over
+let controlMode = 'hand'; // 'hand' (camera) | 'pointer' (mouse/touch fallback)
 let score = 0, combo = 0, comboMax = 0, correctCount = 0, wrongCount = 0, missedCount = 0;
 let timeLeft = GAME_DURATION;
 let spawnTimer = 0;
@@ -524,20 +557,48 @@ function init(){
   handCursorEl = document.getElementById('hand-cursor');
   dwellRingEl = document.getElementById('dwell-ring');
   toastLayer = document.getElementById('toast-layer');
+  modeBadge = document.getElementById('mode-badge');
   bins = Array.from(document.querySelectorAll('.bin'));
 
   document.getElementById('btn-start').addEventListener('click', startFlow);
+  document.getElementById('btn-start-pointer').addEventListener('click', startPointerMode);
   document.getElementById('btn-retry').addEventListener('click', startFlow);
+  document.getElementById('btn-error-pointer').addEventListener('click', startPointerMode);
   document.getElementById('btn-pause').addEventListener('click', pauseGame);
   document.getElementById('btn-resume').addEventListener('click', resumeGame);
   document.getElementById('btn-exit').addEventListener('click', exitToStart);
   document.getElementById('btn-over-exit').addEventListener('click', exitToStart);
-  document.getElementById('btn-again').addEventListener('click', startFlow);
+  document.getElementById('btn-again').addEventListener('click', ()=>{
+    if(controlMode === 'pointer') startPointerMode(); else startFlow();
+  });
+
+  // pointer/touch control for the no-camera fallback mode
+  stage.addEventListener('pointermove', onPointerMove);
+  stage.addEventListener('pointerdown', onPointerMove);
+  stage.addEventListener('pointerup', onPointerEnd);
+  stage.addEventListener('pointercancel', onPointerEnd);
+  stage.addEventListener('pointerleave', onPointerEnd);
 
   const best = localStorage.getItem('wasteSortAR_best');
   if(best){
     document.getElementById('best-row').style.display = 'flex';
     document.getElementById('best-val').textContent = best;
+  }
+}
+
+function onPointerMove(e){
+  if(controlMode !== 'pointer') return;
+  const rect = stage.getBoundingClientRect();
+  hand.x = e.clientX - rect.left;
+  hand.y = e.clientY - rect.top;
+  hand.visible = true;
+}
+function onPointerEnd(e){
+  if(controlMode !== 'pointer') return;
+  // For touch, lifting the finger should release the "hand" like moving it away.
+  // For mouse, only hide when the cursor actually leaves the stage.
+  if(e.type === 'pointerleave' || e.pointerType === 'touch'){
+    hand.visible = false;
   }
 }
 
@@ -547,6 +608,10 @@ async function startFlow(){
   show('screen-error', false);
   show('screen-over', false);
   show('screen-pause', false);
+
+  controlMode = 'hand';
+  stage.classList.remove('pointer-mode');
+  modeBadge.classList.remove('show');
 
   const btn = document.getElementById('btn-start');
   const retryBtn = document.getElementById('btn-retry');
@@ -563,36 +628,61 @@ async function startFlow(){
   }catch(err){
     console.error(err);
     btn.disabled = false; btn.textContent = '🎥 เริ่มเกม (เปิดกล้อง)';
+    retryBtn.disabled = false;
     document.getElementById('err-msg').textContent = (err && err.friendly) ? err.friendly :
-      'กรุณาอนุญาตให้เว็บไซต์เข้าถึงกล้อง แล้วลองใหม่อีกครั้ง (ต้องเปิดผ่าน https หรือ localhost)';
+      'กรุณาอนุญาตให้เว็บไซต์เข้าถึงกล้อง แล้วลองใหม่อีกครั้ง (ต้องเปิดผ่าน https หรือ localhost) หรือกดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทน';
     show('screen-error', true);
   }
+}
+
+async function startPointerMode(){
+  show('screen-start', false);
+  show('screen-error', false);
+  show('screen-over', false);
+  show('screen-pause', false);
+
+  controlMode = 'pointer';
+  stopCamera();
+  stage.classList.add('pointer-mode');
+  modeBadge.classList.add('show');
+  hand.visible = false;
+
+  if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  resetGameStats();
+  stage.classList.add('active');
+  runCountdown();
 }
 
 async function initCamera(){
   try{
     stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ideal:1280}, height:{ideal:720} }, audio:false });
   }catch(e){
-    const err = new Error('camera'); err.friendly = 'ไม่สามารถเข้าถึงกล้องได้ กรุณาตรวจสอบสิทธิ์การใช้งานกล้องของเบราว์เซอร์';
+    const err = new Error('camera'); err.friendly = 'ไม่สามารถเข้าถึงกล้องได้ อาจเป็นเพราะยังไม่ได้อนุญาตสิทธิ์กล้อง, ไม่มีกล้องเชื่อมต่อ, หรือหน้านี้ถูกเปิดในกรอบ (iframe) ที่ไม่อนุญาตให้ใช้กล้อง — ลองเปิดหน้านี้ในแท็บเบราว์เซอร์โดยตรง หรือกดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทน';
     throw err;
   }
   video.srcObject = stream;
-  await new Promise(res=>{
-    video.onloadedmetadata = ()=>{ video.play(); res(); };
+  await new Promise((res, rej)=>{
+    const t = setTimeout(()=>rej(new Error('camera-timeout')), 8000);
+    video.onloadedmetadata = ()=>{ clearTimeout(t); video.play(); res(); };
   });
 }
 
 async function initHandLandmarker(){
   if(handLandmarker) return;
-  const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-  handLandmarker = await HandLandmarker.createFromOptions(vision, {
-    baseOptions:{
-      modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-      delegate:"GPU"
-    },
-    runningMode:"VIDEO",
-    numHands:1
-  });
+  try{
+    const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    handLandmarker = await HandLandmarker.createFromOptions(vision, {
+      baseOptions:{
+        modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+        delegate:"GPU"
+      },
+      runningMode:"VIDEO",
+      numHands:1
+    });
+  }catch(e){
+    const err = new Error('landmarker'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ (อาจเป็นเพราะการเชื่อมต่ออินเทอร์เน็ต) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
+    throw err;
+  }
 }
 
 function runCountdown(){
@@ -648,6 +738,10 @@ function exitToStart(){
   if(rafId) cancelAnimationFrame(rafId);
   stopCamera();
   stage.classList.remove('active');
+  stage.classList.remove('pointer-mode');
+  modeBadge.classList.remove('show');
+  controlMode = 'hand';
+  hand.visible = false; hand.holding = null; hand.dwellItem = null;
   show('screen-pause', false);
   show('screen-over', false);
   show('screen-countdown', false);
@@ -738,7 +832,11 @@ function loop(ts){
   const dt = Math.min(50, ts - lastTs);
   lastTs = ts;
 
-  detectHand(ts);
+  if(controlMode === 'hand'){
+    detectHand(ts);
+  }else{
+    updateHandCursor();
+  }
 
   if(gameState === 'playing'){
     updateTimer(dt);
@@ -748,7 +846,7 @@ function loop(ts){
 }
 
 function detectHand(ts){
-  if(!handLandmarker || !video.videoWidth){ setHandVisible(false); return; }
+  if(!handLandmarker || !video.videoWidth){ setHandVisible(false); updateHandCursor(); return; }
   let result;
   try{
     result = handLandmarker.detectForVideo(video, ts);
@@ -780,8 +878,9 @@ function updateHandCursor(){
   if(gameState !== 'playing' && gameState !== 'paused'){ handCursorEl.classList.add('hidden-cursor'); dwellRingEl.style.opacity=0; return; }
   if(!hand.visible){ handCursorEl.classList.add('hidden-cursor'); dwellRingEl.style.opacity=0; return; }
   handCursorEl.classList.remove('hidden-cursor');
-  hand.sx += (hand.x - hand.sx) * 0.35;
-  hand.sy += (hand.y - hand.sy) * 0.35;
+  const smoothing = controlMode === 'pointer' ? 0.6 : 0.35;
+  hand.sx += (hand.x - hand.sx) * smoothing;
+  hand.sy += (hand.y - hand.sy) * smoothing;
   handCursorEl.style.left = hand.sx + 'px';
   handCursorEl.style.top = hand.sy + 'px';
   handCursorEl.classList.toggle('grabbing', !!hand.holding);
