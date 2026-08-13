@@ -2,7 +2,12 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes, viewport-fit=cover">
+<meta name="theme-color" content="#0A1712">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
 <title>คัดแยกขยะ AR | โครงการส่งเสริมการเรียนรู้การจัดการขยะมูลฝอยชุมชน</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,22 +31,29 @@
   --hazard-dk:#B33333;
   --radius:18px;
   --shadow-lg:0 20px 60px rgba(0,0,0,.5);
+  --sat:env(safe-area-inset-top,0px);
+  --sar:env(safe-area-inset-right,0px);
+  --sab:env(safe-area-inset-bottom,0px);
+  --sal:env(safe-area-inset-left,0px);
 }
-*{box-sizing:border-box;}
-html{font-size:clamp(16px, 0.85vw + 11px, 22px);}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html{font-size:clamp(15px, 0.85vw + 11px, 22px);height:100%;height:100dvh;}
 html,body{
-  margin:0;padding:0;width:100%;height:100%;
+  margin:0;padding:0;width:100%;height:100%;height:100dvh;
   background:var(--bg-deep);
   color:var(--ink);
   font-family:'Sarabun',sans-serif;
   line-height:1.5;
   overflow:hidden;
+  overscroll-behavior:none;
   -webkit-user-select:none;user-select:none;
+  touch-action:manipulation;
 }
 h1,h2,h3,.display{font-family:'Kanit',sans-serif;}
-button{font-family:'Kanit',sans-serif;}
+button{font-family:'Kanit',sans-serif;touch-action:manipulation;}
 
-#app{position:fixed;inset:0;overflow:hidden;background:var(--bg-deep);}
+#app{position:fixed;inset:0;overflow:hidden;background:var(--bg-deep);
+  width:100%;height:100%;height:100dvh;}
 
 /* ---------- decorative texture ---------- */
 .grain{
@@ -63,7 +75,7 @@ button{font-family:'Kanit',sans-serif;}
 /* ================= START SCREEN ================= */
 .screen{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  z-index:40;padding:24px;
+  z-index:40;padding:calc(24px + var(--sat)) calc(24px + var(--sar)) calc(24px + var(--sab)) calc(24px + var(--sal));
 }
 .card{
   position:relative;
@@ -179,7 +191,8 @@ video{
 
 /* ---- mode badge ---- */
 .mode-badge{
-  position:absolute;top:clamp(12px,2vw,24px);left:50%;transform:translateX(-50%);
+  position:absolute;top:calc(clamp(12px,2vw,24px) + var(--sat));left:50%;transform:translateX(-50%);
+  max-width:min(92vw,560px);text-align:center;
   z-index:20;background:rgba(18,36,28,.78);backdrop-filter:blur(8px);
   border:1px solid rgba(198,255,94,.25);border-radius:100px;
   padding:6px 16px;font-size:clamp(12px,1.3vw,15px);font-weight:700;color:var(--accent);
@@ -188,7 +201,7 @@ video{
 .mode-badge.show{display:flex;}
 
 /* ---- HUD ---- */
-#hud{position:absolute;top:clamp(12px,2vw,24px);left:clamp(12px,2vw,24px);right:clamp(12px,2vw,24px);z-index:20;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;}
+#hud{position:absolute;top:calc(clamp(12px,2vw,24px) + var(--sat));left:calc(clamp(12px,2vw,24px) + var(--sal));right:calc(clamp(12px,2vw,24px) + var(--sar));z-index:20;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;}
 .hud-card{
   background:rgba(18,36,28,.78);backdrop-filter:blur(8px);
   border:1px solid rgba(198,255,94,.2);border-radius:16px;
@@ -294,7 +307,7 @@ video{
 /* ---- bins ---- */
 #bins-layer{
   position:absolute;left:0;right:0;bottom:0;z-index:16;
-  display:flex;gap:2%;padding:0 3% clamp(16px,2.4vw,26px);justify-content:center;
+  display:flex;gap:2%;padding:0 calc(3% + var(--sar)) calc(clamp(16px,2.4vw,26px) + var(--sab)) calc(3% + var(--sal));justify-content:center;
 }
 .bin{
   flex:1;max-width:300px;min-width:130px;
@@ -349,8 +362,24 @@ video{
   .how-row{flex-direction:column;}
   .seal{width:60px;height:60px;font-size:9px;top:16px;right:16px;}
   .bin .bin-sub{display:none;}
-  #bins-layer{padding:0 2% 12px;gap:1.5%;}
+  #bins-layer{padding:0 calc(2% + var(--sar)) calc(12px + var(--sab)) calc(2% + var(--sal));gap:1.5%;}
   .pause-actions{flex-direction:column;}
+}
+/* Short viewports: landscape phones, foldables, or browser chrome eating vertical space */
+@media (max-height:480px){
+  html{font-size:14px;}
+  .card{padding:16px 20px;max-height:96vh;max-height:96dvh;}
+  .how-row{margin:14px 0 16px;}
+  .how-step{padding:10px 10px;}
+  .bins-legend{margin-bottom:16px;}
+  .seal{display:none;}
+  #bins-layer{padding-bottom:calc(8px + var(--sab));}
+  .bin{padding-top:10px;padding-bottom:10px;}
+  .bin .bin-sub{display:none;}
+  .scan-corner.bl,.scan-corner.br{bottom:110px;}
+}
+@media (max-height:480px) and (max-width:820px){
+  #hud{top:calc(8px + var(--sat));}
 }
 /* Large displays / projectors used for group community training */
 @media (min-width:1400px){
@@ -358,6 +387,11 @@ video{
   .card{max-width:760px;}
   #bins-layer{padding:0 6% clamp(20px,2.4vw,30px);}
   .bin{max-width:340px;}
+}
+/* Very narrow phones */
+@media (max-width:360px){
+  .title-main{font-size:26px;}
+  .eyebrow{font-size:11px;padding:6px 10px;}
 }
 </style>
 </head>
@@ -486,7 +520,14 @@ video{
 </div>
 
 <script type="module">
-import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+/* NOTE: MediaPipe's vision module is loaded lazily via dynamic import() inside
+   initHandLandmarker(), not as a static top-level import. With a static import,
+   any hiccup loading the CDN module (ad blocker, restrictive school/office
+   firewall, offline, flaky mobile connection) would fail the *entire* module
+   before any of the code below runs — leaving every button on the page dead
+   with no error shown. Loading it lazily means the page always initializes,
+   errors are catchable, and no-camera/pointer-mode users never pay the cost
+   of downloading the hand-tracking bundle at all. */
 
 /* ---------------- config ---------------- */
 const CATS = {
@@ -584,6 +625,14 @@ function init(){
     document.getElementById('best-row').style.display = 'flex';
     document.getElementById('best-val').textContent = best;
   }
+
+  // Auto-pause on backgrounding (app switch, screen lock, tab switch) — saves
+  // battery on mobile, avoids the camera running unattended, and stops the
+  // countdown from silently draining while the user isn't looking.
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden && gameState === 'playing') pauseGame();
+  });
+  window.addEventListener('pagehide', ()=>{ if(gameState==='playing') pauseGame(); });
 }
 
 function onPointerMove(e){
@@ -621,7 +670,7 @@ async function startFlow(){
   try{
     await Promise.all([initCamera(), initHandLandmarker()]);
     btn.disabled = false; btn.textContent = '🎥 เริ่มเกม (เปิดกล้อง)';
-    if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    ensureAudio();
     resetGameStats();
     stage.classList.add('active');
     runCountdown();
@@ -647,40 +696,96 @@ async function startPointerMode(){
   modeBadge.classList.add('show');
   hand.visible = false;
 
-  if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  ensureAudio();
   resetGameStats();
   stage.classList.add('active');
   runCountdown();
 }
 
 async function initCamera(){
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ideal:1280}, height:{ideal:720} }, audio:false });
-  }catch(e){
-    const err = new Error('camera'); err.friendly = 'ไม่สามารถเข้าถึงกล้องได้ อาจเป็นเพราะยังไม่ได้อนุญาตสิทธิ์กล้อง, ไม่มีกล้องเชื่อมต่อ, หรือหน้านี้ถูกเปิดในกรอบ (iframe) ที่ไม่อนุญาตให้ใช้กล้อง — ลองเปิดหน้านี้ในแท็บเบราว์เซอร์โดยตรง หรือกดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทน';
+  if(!window.isSecureContext){
+    const err = new Error('insecure'); err.friendly = 'ต้องเปิดหน้านี้ผ่าน https หรือ localhost เท่านั้น เบราว์เซอร์จะไม่อนุญาตให้ใช้กล้องบนการเชื่อมต่อที่ไม่ปลอดภัย — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
+    throw err;
+  }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    const err = new Error('unsupported'); err.friendly = 'เบราว์เซอร์นี้ไม่รองรับการเข้าถึงกล้อง กรุณาใช้เบราว์เซอร์รุ่นใหม่ (Chrome, Safari, Edge) หรือกดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทน';
+    throw err;
+  }
+
+  const constraintAttempts = [
+    { video:{ facingMode:{ideal:'user'}, width:{ideal:1280}, height:{ideal:720} }, audio:false },
+    { video:{ facingMode:'user' }, audio:false },
+    { video:true, audio:false } // last resort: single-camera / older devices that reject facingMode
+  ];
+
+  let lastErr = null;
+  for(const constraints of constraintAttempts){
+    try{
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      lastErr = null;
+      break;
+    }catch(e){ lastErr = e; }
+  }
+  if(!stream){
+    const err = new Error('camera');
+    if(lastErr && (lastErr.name === 'NotAllowedError' || lastErr.name === 'PermissionDeniedError')){
+      err.friendly = 'ยังไม่ได้อนุญาตให้เว็บไซต์ใช้กล้อง กรุณาอนุญาตสิทธิ์กล้องในตั้งค่าเบราว์เซอร์ แล้วลองใหม่ หรือกดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทน';
+    }else if(lastErr && (lastErr.name === 'NotFoundError' || lastErr.name === 'DevicesNotFoundError')){
+      err.friendly = 'ไม่พบกล้องบนอุปกรณ์นี้ — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
+    }else if(lastErr && (lastErr.name === 'NotReadableError' || lastErr.name === 'TrackStartError')){
+      err.friendly = 'กล้องกำลังถูกใช้งานโดยแอปอื่นอยู่ กรุณาปิดแอปที่ใช้กล้องแล้วลองใหม่ หรือกดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทน';
+    }else{
+      err.friendly = 'ไม่สามารถเข้าถึงกล้องได้ อาจเป็นเพราะยังไม่ได้อนุญาตสิทธิ์กล้อง, ไม่มีกล้องเชื่อมต่อ, หรือหน้านี้ถูกเปิดในกรอบ (iframe) ที่ไม่อนุญาตให้ใช้กล้อง — ลองเปิดหน้านี้ในแท็บเบราว์เซอร์โดยตรง หรือกดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทน';
+    }
     throw err;
   }
   video.srcObject = stream;
   await new Promise((res, rej)=>{
     const t = setTimeout(()=>rej(new Error('camera-timeout')), 8000);
-    video.onloadedmetadata = ()=>{ clearTimeout(t); video.play(); res(); };
+    video.onloadedmetadata = ()=>{ clearTimeout(t); video.play().catch(()=>{}); res(); };
   });
 }
 
 async function initHandLandmarker(){
   if(handLandmarker) return;
+
+  let HandLandmarker, FilesetResolver;
   try{
-    const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions:{
-        modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-        delegate:"GPU"
-      },
-      runningMode:"VIDEO",
-      numHands:1
-    });
+    ({ HandLandmarker, FilesetResolver } = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs"));
+  }catch(e){
+    console.error(e);
+    const err = new Error('landmarker-load'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ อาจเป็นเพราะการเชื่อมต่ออินเทอร์เน็ตหรือมีตัวบล็อกการเชื่อมต่อ (เช่น ไฟร์วอลล์/ตัวบล็อกโฆษณา) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
+    throw err;
+  }
+
+  let vision;
+  try{
+    vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
   }catch(e){
     const err = new Error('landmarker'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ (อาจเป็นเพราะการเชื่อมต่ออินเทอร์เน็ต) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
+    throw err;
+  }
+  // Prefer GPU (WebGL) delegate for speed; many low-end/older devices or embedded
+  // WebViews don't support it, so fall back to the CPU delegate before giving up.
+  const delegatesToTry = ["GPU", "CPU"];
+  let lastErr = null;
+  for(const delegate of delegatesToTry){
+    try{
+      handLandmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions:{
+          modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate
+        },
+        runningMode:"VIDEO",
+        numHands:1
+      });
+      lastErr = null;
+      break;
+    }catch(e){ lastErr = e; }
+  }
+  if(!handLandmarker){
+    console.error(lastErr);
+    const err = new Error('landmarker'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ (อุปกรณ์นี้อาจไม่รองรับ) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
     throw err;
   }
 }
@@ -730,6 +835,8 @@ function pauseGame(){
 function resumeGame(){
   if(gameState !== 'paused') return;
   show('screen-pause', false);
+  ensureAudio();
+  if(controlMode === 'hand' && video && video.paused){ video.play().catch(()=>{}); }
   gameState = 'playing';
   lastTs = performance.now();
 }
@@ -786,6 +893,12 @@ function show(id, visible){
 }
 
 /* ---------------- audio ---------------- */
+function ensureAudio(){
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+  }catch(e){ /* audio is a nice-to-have; game works fine without it */ }
+}
 function tone(freq, dur, type='sine', gain=0.15, delay=0){
   if(!audioCtx) return;
   const t0 = audioCtx.currentTime + delay;
