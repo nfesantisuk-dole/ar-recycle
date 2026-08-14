@@ -150,6 +150,11 @@ button{font-family:'Kanit',sans-serif;touch-action:manipulation;}
 .cta-ghost:hover{background:rgba(22,35,26,.06);}
 .fineprint{font-size:clamp(13px,1.3vw,15px);color:#5B6B5E;text-align:center;margin-top:16px;line-height:1.6;font-weight:500;}
 .best-row{display:flex;justify-content:center;gap:6px;font-size:clamp(14px,1.5vw,17px);color:#3C4A3F;margin-top:16px;font-weight:700;}
+.ready-row{display:flex;justify-content:center;align-items:center;gap:8px;font-size:clamp(12.5px,1.3vw,14.5px);color:var(--organic-dk);margin-top:14px;font-weight:600;min-height:20px;}
+.ready-dot{width:8px;height:8px;border-radius:50%;background:#C7B77A;flex:none;transition:background .25s;}
+.ready-dot.on{background:var(--organic-dk);box-shadow:0 0 0 3px rgba(62,138,44,.18);}
+.ready-dot.spin{animation:dotPulse 1s ease-in-out infinite;}
+@keyframes dotPulse{0%,100%{opacity:.4;}50%{opacity:1;}}
 
 /* ================= COUNTDOWN ================= */
 #screen-countdown{z-index:45;background:rgba(6,14,10,.55);backdrop-filter:blur(3px);}
@@ -424,6 +429,10 @@ video{
       <button class="cta" id="btn-start">🎥 เริ่มเกม (เปิดกล้อง)</button>
       <button class="cta-ghost" id="btn-start-pointer">🖱️ เล่นแบบไม่ใช้กล้อง (เมาส์ / นิ้ว)</button>
       <p class="fineprint">ใช้กล้องตรวจจับมือเท่านั้น ไม่มีการบันทึกหรือส่งภาพออกจากเครื่อง<br>หากเปิดกล้องไม่ได้ สามารถเลือกโหมด "เล่นแบบไม่ใช้กล้อง" แทนได้</p>
+      <div class="ready-row" id="ready-row">
+        <span class="ready-dot spin" id="ready-dot"></span>
+        <span id="ready-text">กำลังเตรียมระบบตรวจจับมือไว้ล่วงหน้า...</span>
+      </div>
       <div class="best-row" id="best-row" style="display:none;">🏆 คะแนนสูงสุด: <span id="best-val">0</span></div>
     </div>
   </div>
@@ -527,7 +536,16 @@ video{
    before any of the code below runs — leaving every button on the page dead
    with no error shown. Loading it lazily means the page always initializes,
    errors are catchable, and no-camera/pointer-mode users never pay the cost
-   of downloading the hand-tracking bundle at all. */
+   of downloading the hand-tracking bundle at all.
+
+   SPEED: the model/wasm download (a few MB) is the slow part of "opening the
+   camera", not getUserMedia itself. We kick this download off in the
+   background the moment the page loads (init()), so by the time the user
+   reads the instructions and taps "start", it's usually already done and
+   only the camera permission prompt + negotiation stands between them and
+   the countdown. initHandLandmarker() is single-flight (a shared in-flight
+   promise) so this background warm-up and the later call from startFlow()
+   never race or double-download. */
 
 /* ---------------- config ---------------- */
 const CATS = {
@@ -566,9 +584,11 @@ const MAX_CONCURRENT_BASE = 3;
 const MAX_CONCURRENT_CAP = 5;
 const SPAWN_INTERVAL = 1400;   // ms
 const TIMER_CIRCUMFERENCE = 201.06; // matches svg r=32 (2 * pi * 32)
+const CAMERA_TIMEOUT_MS = 8000;
 
 /* ---------------- state ---------------- */
 let handLandmarker = null;
+let handLandmarkerPromise = null; // in-flight loader, shared between preload + startFlow
 let video, stage, itemsLayer, binsLayer, handCursorEl, dwellRingEl, toastLayer, modeBadge;
 let bins = [];
 let stream = null;
@@ -633,6 +653,35 @@ function init(){
     if(document.hidden && gameState === 'playing') pauseGame();
   });
   window.addEventListener('pagehide', ()=>{ if(gameState==='playing') pauseGame(); });
+
+  // Warm up the hand-tracking model in the background as soon as the page
+  // loads (no camera permission requested yet — just the JS/WASM/model
+  // download). This is the single biggest lever on perceived "camera is
+  // slow to open" complaints, since it overlaps the download with the user
+  // reading the instructions instead of happening after they tap start.
+  setReadyStatus('loading');
+  initHandLandmarker().then(()=>{
+    setReadyStatus('ready');
+  }).catch((err)=>{
+    console.warn('Background model warm-up failed, will retry on start:', err);
+    setReadyStatus('idle');
+  });
+}
+
+function setReadyStatus(state){
+  const dot = document.getElementById('ready-dot');
+  const text = document.getElementById('ready-text');
+  if(!dot || !text) return;
+  if(state === 'loading'){
+    dot.classList.remove('on'); dot.classList.add('spin');
+    text.textContent = 'กำลังเตรียมระบบตรวจจับมือไว้ล่วงหน้า...';
+  }else if(state === 'ready'){
+    dot.classList.remove('spin'); dot.classList.add('on');
+    text.textContent = 'ระบบตรวจจับมือพร้อมแล้ว — กดเริ่มเกมได้ทันที';
+  }else{
+    dot.classList.remove('spin','on');
+    text.textContent = 'จะเตรียมระบบตรวจจับมืออีกครั้งตอนกดเริ่มเกม';
+  }
 }
 
 function onPointerMove(e){
@@ -664,11 +713,22 @@ async function startFlow(){
 
   const btn = document.getElementById('btn-start');
   const retryBtn = document.getElementById('btn-retry');
-  btn.disabled = true; btn.textContent = '⏳ กำลังเตรียมกล้องและระบบตรวจจับมือ...';
-  retryBtn.disabled = true;
+  const modelAlreadyWarm = !!handLandmarker;
+  btn.disabled = true; retryBtn.disabled = true;
+  btn.textContent = modelAlreadyWarm ? '⏳ กำลังเปิดกล้อง...' : '⏳ กำลังเปิดกล้องและเตรียมระบบตรวจจับมือ...';
 
   try{
-    await Promise.all([initCamera(), initHandLandmarker()]);
+    // Run camera negotiation and model loading in parallel. If the model was
+    // already warmed up in the background (the common case), this resolves
+    // as fast as the camera prompt itself allows.
+    const camPromise = initCamera();
+    const modelPromise = initHandLandmarker();
+    if(!modelAlreadyWarm){
+      camPromise.then(()=>{
+        if(!handLandmarker) btn.textContent = '⏳ กำลังโหลดระบบตรวจจับมือ (ครั้งแรกอาจใช้เวลาสักครู่)...';
+      }).catch(()=>{});
+    }
+    await Promise.all([camPromise, modelPromise]);
     btn.disabled = false; btn.textContent = '🎥 เริ่มเกม (เปิดกล้อง)';
     ensureAudio();
     resetGameStats();
@@ -712,8 +772,14 @@ async function initCamera(){
     throw err;
   }
 
+  // Ask for a modest resolution first: hand-tracking only needs a small frame
+  // internally, and requesting 720p/1080p "ideal" up front makes some webcams
+  // and mobile front cameras take noticeably longer to negotiate a stream
+  // (auto-exposure/focus settling, larger format selection, etc). Starting
+  // small gets frames flowing faster; the game looks fine at 480p on the
+  // blurred/veiled video background anyway.
   const constraintAttempts = [
-    { video:{ facingMode:{ideal:'user'}, width:{ideal:1280}, height:{ideal:720} }, audio:false },
+    { video:{ facingMode:{ideal:'user'}, width:{ideal:640}, height:{ideal:480}, frameRate:{ideal:30} }, audio:false },
     { video:{ facingMode:'user' }, audio:false },
     { video:true, audio:false } // last resort: single-camera / older devices that reject facingMode
   ];
@@ -741,53 +807,63 @@ async function initCamera(){
   }
   video.srcObject = stream;
   await new Promise((res, rej)=>{
-    const t = setTimeout(()=>rej(new Error('camera-timeout')), 8000);
+    const t = setTimeout(()=>rej(new Error('camera-timeout')), CAMERA_TIMEOUT_MS);
     video.onloadedmetadata = ()=>{ clearTimeout(t); video.play().catch(()=>{}); res(); };
   });
 }
 
-async function initHandLandmarker(){
-  if(handLandmarker) return;
+function initHandLandmarker(){
+  if(handLandmarker) return Promise.resolve();
+  if(handLandmarkerPromise) return handLandmarkerPromise; // already loading — share it, never double-download
 
-  let HandLandmarker, FilesetResolver;
-  try{
-    ({ HandLandmarker, FilesetResolver } = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs"));
-  }catch(e){
-    console.error(e);
-    const err = new Error('landmarker-load'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ อาจเป็นเพราะการเชื่อมต่ออินเทอร์เน็ตหรือมีตัวบล็อกการเชื่อมต่อ (เช่น ไฟร์วอลล์/ตัวบล็อกโฆษณา) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
-    throw err;
-  }
-
-  let vision;
-  try{
-    vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-  }catch(e){
-    const err = new Error('landmarker'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ (อาจเป็นเพราะการเชื่อมต่ออินเทอร์เน็ต) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
-    throw err;
-  }
-  // Prefer GPU (WebGL) delegate for speed; many low-end/older devices or embedded
-  // WebViews don't support it, so fall back to the CPU delegate before giving up.
-  const delegatesToTry = ["GPU", "CPU"];
-  let lastErr = null;
-  for(const delegate of delegatesToTry){
+  handLandmarkerPromise = (async ()=>{
+    let HandLandmarker, FilesetResolver;
     try{
-      handLandmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions:{
-          modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-          delegate
-        },
-        runningMode:"VIDEO",
-        numHands:1
-      });
-      lastErr = null;
-      break;
-    }catch(e){ lastErr = e; }
-  }
-  if(!handLandmarker){
-    console.error(lastErr);
-    const err = new Error('landmarker'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ (อุปกรณ์นี้อาจไม่รองรับ) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
-    throw err;
-  }
+      ({ HandLandmarker, FilesetResolver } = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs"));
+    }catch(e){
+      console.error(e);
+      const err = new Error('landmarker-load'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ อาจเป็นเพราะการเชื่อมต่ออินเทอร์เน็ตหรือมีตัวบล็อกการเชื่อมต่อ (เช่น ไฟร์วอลล์/ตัวบล็อกโฆษณา) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
+      throw err;
+    }
+
+    let vision;
+    try{
+      vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    }catch(e){
+      const err = new Error('landmarker'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ (อาจเป็นเพราะการเชื่อมต่ออินเทอร์เน็ต) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
+      throw err;
+    }
+    // Prefer GPU (WebGL) delegate for speed; many low-end/older devices or embedded
+    // WebViews don't support it, so fall back to the CPU delegate before giving up.
+    const delegatesToTry = ["GPU", "CPU"];
+    let lastErr = null;
+    for(const delegate of delegatesToTry){
+      try{
+        handLandmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions:{
+            modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+            delegate
+          },
+          runningMode:"VIDEO",
+          numHands:1
+        });
+        lastErr = null;
+        break;
+      }catch(e){ lastErr = e; }
+    }
+    if(!handLandmarker){
+      console.error(lastErr);
+      const err = new Error('landmarker'); err.friendly = 'โหลดระบบตรวจจับมือไม่สำเร็จ (อุปกรณ์นี้อาจไม่รองรับ) — กดปุ่มด้านล่างเพื่อเล่นแบบไม่ใช้กล้องแทนได้';
+      throw err;
+    }
+  })();
+
+  // If loading fails, clear the shared promise so a later retry (e.g. the
+  // user taps "ลองอีกครั้ง") actually attempts again instead of replaying
+  // the same rejection forever.
+  handLandmarkerPromise.catch(()=>{ handLandmarkerPromise = null; });
+
+  return handLandmarkerPromise;
 }
 
 function runCountdown(){
@@ -859,6 +935,7 @@ function exitToStart(){
     document.getElementById('best-row').style.display = 'flex';
     document.getElementById('best-val').textContent = best;
   }
+  setReadyStatus(handLandmarker ? 'ready' : (handLandmarkerPromise ? 'loading' : 'idle'));
   show('screen-start', true);
 }
 function stopCamera(){
